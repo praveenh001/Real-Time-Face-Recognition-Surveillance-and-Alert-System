@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+.venv/
+ENV/
+env/
+
+# Sensitive configuration credentials
+.env
+
+# Local database/temporary captured snapshots
+captured/
+known_faces/*
+!known_faces/.gitkeep
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE specific files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
