@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Surveillance Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="navbar">
+        <div class="brand">
+            <span class="pulse-icon alert-safe-color" id="system-status-indicator"></span>
+            <h1>Smart Surveillance Center</h1>
+        </div>
+        <div class="system-time" id="live-time">Loading...</div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Live Stream Section -->
+        <section class="card video-card">
+            <div class="card-header">
+                <h2>Live Security Feed</h2>
+                <div class="badge status-badge" id="camera-status-badge">Webcam active</div>
+            </div>
+            <div class="video-container">
+                <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Live Camera Video Stream" onerror="handleStreamError()">
+                <div id="stream-fallback" class="fallback-container hidden">
+                    <svg viewBox="0 0 24 24" class="fallback-icon">
+                        <path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9C8.786 2 6.76 2.805 5.19 4.13L1.53.47.47 1.53l20 20 1.06-1.06zM6.6 5.54C7.81 4.57 9.34 4 11 4c3.86 0 7 3.14 7 7 0 1.66-.57 3.19-1.54 4.4L6.6 5.54zM3.46 7.62L4.9 9.06C4.33 9.64 4 10.28 4 11c0 3.86 3.14 7 7 7 .72 0 1.36-.33 1.94-.9l1.44 1.44C13.41 19.46 12.27 20 11 20c-4.97 0-9-4.03-9-9 0-1.27.54-2.41 1.46-3.38z" />
+                    </svg>
+                    <p>Camera Stream Disconnected. Verify your video source settings.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Face Enrollment Section -->
+        <section class="card upload-card">
+            <div class="card-header">
+                <h2>Enroll Known Face</h2>
+            </div>
+            <form id="upload-form" class="card-body">
+                <div class="input-group">
+                    <label for="person-name">Full Name</label>
+                    <input type="text" id="person-name" placeholder="e.g. John Doe" required>
+                </div>
+                <div class="input-group">
+                    <label for="person-photo">Select Photo (Face must be clear)</label>
+                    <div class="file-dropzone" id="dropzone">
+                        <input type="file" id="person-photo" accept="image/*" required>
+                        <span class="dropzone-text">Click to choose or Drag file here</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-upload">Register Face</button>
+            </form>
+            <div id="upload-feedback" class="feedback-msg hidden"></div>
+        </section>
+
+        <!-- Settings Panel -->
+        <section class="card settings-card">
+            <div class="card-header">
+                <h2>Configuration Panel</h2>
+            </div>
+            <form id="settings-form" class="card-body">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label for="set-video-source">Video Source (Webcam Index or RTSP URL)</label>
+                        <input type="text" id="set-video-source" required>
+                    </div>
+                </div>
+                <div class="form-row split">
+                    <div class="input-group">
+                        <label for="set-tolerance">Tolerance (Lower is stricter)</label>
+                        <input type="number" id="set-tolerance" step="0.05" min="0.1" max="1.0" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="set-cooldown">SMS Cooldown (seconds)</label>
+                        <input type="number" id="set-cooldown" min="10" required>
+                    </div>
+                </div>
+                <hr class="divider">
+                <h3 class="subheader">Twilio Integration</h3>
+                <div class="form-row split">
+                    <div class="input-group">
+                        <label for="set-twilio-sid">Account SID</label>
+                        <input type="password" id="set-twilio-sid" placeholder="AC...">
+                    </div>
+                    <div class="input-group">
+                        <label for="set-twilio-token">Auth Token</label>
+                        <input type="password" id="set-twilio-token" placeholder="••••••••••••••••">
+                    </div>
+                </div>
+                <div class="form-row split">
+                    <div class="input-group">
+                        <label for="set-twilio-from">Twilio Number</label>
+                        <input type="text" id="set-twilio-from" placeholder="+1234...">
+                    </div>
+                    <div class="input-group">
+                        <label for="set-to-number">Recipient Number</label>
+                        <input type="text" id="set-to-number" placeholder="+1987...">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-secondary">Apply & Save Config</button>
+            </form>
+            <div id="settings-feedback" class="feedback-msg hidden"></div>
+        </section>
+
+        <!-- Intruder Gallery Timeline -->
+        <section class="card gallery-card">
+            <div class="card-header">
+                <h2>Intrusion Alerts & Log</h2>
+                <button class="btn-text" id="btn-refresh-log">Refresh Log</button>
+            </div>
+            <div class="gallery-container" id="intruder-timeline">
+                <!-- Log cards will be loaded here dynamically -->
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" class="empty-icon">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                    </svg>
+                    <p>No intrusion events captured yet.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for viewing full captured intruder picture -->
+    <div id="image-modal" class="modal hidden" onclick="closeModal()">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modal-img">
+        <div id="modal-caption"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
