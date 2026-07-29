@@ -1,0 +1,10 @@
+venv/
+.env
+.git/
+__pycache__/
+captured/*.jpg
+known_faces/*.jpg
+known_faces/*.png
+!known_faces/.gitkeep
+run_security_system.bat
+Architecture_and_Implementation_Guide.pdf

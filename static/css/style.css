@@ -252,7 +252,8 @@ body {
 
 .input-group input[type="text"],
 .input-group input[type="password"],
-.input-group input[type="number"] {
+.input-group input[type="number"],
+.input-group select {
     background-color: rgba(15, 23, 42, 0.6);
     border: 1px solid var(--border-card);
     border-radius: 8px;
@@ -262,6 +263,11 @@ body {
     font-size: 0.95rem;
     outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-group select option {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
 }
 
 .input-group input:focus {

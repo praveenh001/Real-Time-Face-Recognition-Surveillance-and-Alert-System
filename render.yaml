@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: face-recognition-security-system
+    env: docker
+    plan: starter
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: TWILIO_ACCOUNT_SID
+        sync: false  # Must be filled in Render Dashboard
+      - key: TWILIO_AUTH_TOKEN
+        sync: false  # Must be filled in Render Dashboard
+      - key: TWILIO_FROM_NUMBER
+        sync: false  # Must be filled in Render Dashboard
+      - key: TO_NUMBER
+        sync: false  # Must be filled in Render Dashboard
+      - key: VIDEO_SOURCE
+        value: "0"   # Set to your external CCTV RTSP stream URL in the dashboard (webcam won't work in the cloud)
+      - key: CAMERA_MODE
+        value: "cctv" # CCTV mode runs 24/7 in the cloud
+      - key: COOLDOWN_SECONDS
+        value: "300"
+      - key: CAPTURE_COOLDOWN_SECONDS
+        value: "10"
+      - key: TOLERANCE
+        value: "0.6"
+      - key: PERSISTENT_STORAGE_DIR
+        value: "/app/data"
+    disk:
+      name: security-storage
+      mountPath: /app/data
+      sizeGB: 1

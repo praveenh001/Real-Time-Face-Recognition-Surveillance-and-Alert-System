@@ -23,6 +23,21 @@ if raw_video_source.isdigit():
 else:
     VIDEO_SOURCE = raw_video_source
 
+# Camera Mode Settings (webcam, cctv, auto)
+CAMERA_MODE = os.getenv("CAMERA_MODE", "auto").lower()
+
+def get_effective_camera_mode():
+    """
+    Returns the resolved camera mode: either 'webcam' or 'cctv'.
+    If set to 'auto', it returns 'webcam' for local camera indices and 'cctv' for RTSP streams.
+    """
+    if CAMERA_MODE == "webcam":
+        return "webcam"
+    elif CAMERA_MODE == "cctv":
+        return "cctv"
+    else:  # auto
+        return "webcam" if isinstance(VIDEO_SOURCE, int) or str(VIDEO_SOURCE).isdigit() else "cctv"
+
 # Face Recognition Settings
 try:
     TOLERANCE = float(os.getenv("TOLERANCE", "0.6"))
@@ -35,9 +50,20 @@ try:
 except ValueError:
     COOLDOWN_SECONDS = 300
 
+try:
+    CAPTURE_COOLDOWN_SECONDS = int(os.getenv("CAPTURE_COOLDOWN_SECONDS", "10"))
+except ValueError:
+    CAPTURE_COOLDOWN_SECONDS = 10
+
 # Directories
-KNOWN_FACES_DIR = BASE_DIR / "known_faces"
-CAPTURED_DIR = BASE_DIR / "captured"
+DATA_DIR = os.getenv("PERSISTENT_STORAGE_DIR", "")
+if DATA_DIR:
+    DATA_PATH = Path(DATA_DIR)
+    KNOWN_FACES_DIR = DATA_PATH / "known_faces"
+    CAPTURED_DIR = DATA_PATH / "captured"
+else:
+    KNOWN_FACES_DIR = BASE_DIR / "known_faces"
+    CAPTURED_DIR = BASE_DIR / "captured"
 
 # Automatically create directories if they don't exist
 KNOWN_FACES_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,7 +73,7 @@ def save_settings(updates):
     """
     Saves new settings back to the .env file and updates current in-memory configurations.
     """
-    global TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TO_NUMBER, VIDEO_SOURCE, TOLERANCE, COOLDOWN_SECONDS
+    global TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TO_NUMBER, VIDEO_SOURCE, TOLERANCE, COOLDOWN_SECONDS, CAPTURE_COOLDOWN_SECONDS, CAMERA_MODE
     
     # Read existing values
     env_content = {}
@@ -77,6 +103,10 @@ def save_settings(updates):
             TOLERANCE = float(v)
         elif k == "COOLDOWN_SECONDS":
             COOLDOWN_SECONDS = int(v)
+        elif k == "CAPTURE_COOLDOWN_SECONDS":
+            CAPTURE_COOLDOWN_SECONDS = int(v)
+        elif k == "CAMERA_MODE":
+            CAMERA_MODE = str(v).lower()
 
     # Write back to .env
     lines = [
@@ -89,11 +119,14 @@ def save_settings(updates):
         "# Video source (0 for webcam, or RTSP URL)",
         f"VIDEO_SOURCE={env_content.get('VIDEO_SOURCE', '0')}",
         "",
+        "# Camera mode (webcam, cctv, auto)",
+        f"CAMERA_MODE={env_content.get('CAMERA_MODE', 'auto')}",
+        "",
         "# Alert configuration",
         f"COOLDOWN_SECONDS={env_content.get('COOLDOWN_SECONDS', '300')}",
+        f"CAPTURE_COOLDOWN_SECONDS={env_content.get('CAPTURE_COOLDOWN_SECONDS', '10')}",
         f"TOLERANCE={env_content.get('TOLERANCE', '0.6')}"
     ]
 
     with open(dotenv_path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
-

@@ -58,6 +58,7 @@ def main():
     
     # Track cooldown timer
     last_alert_time = 0
+    last_capture_time = 0
     
     # Initialize camera source
     video_source = settings.VIDEO_SOURCE
@@ -153,7 +154,7 @@ def main():
             # Alert and capture logic if an unknown person is detected
             if unknown_detected:
                 current_time = time.time()
-                if current_time - last_alert_time >= settings.COOLDOWN_SECONDS:
+                if current_time - last_capture_time >= settings.CAPTURE_COOLDOWN_SECONDS:
                     # Capture and save the image
                     now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                     photo_name = f"captured_unknown_{now_str}.jpg"
@@ -162,13 +163,15 @@ def main():
                     try:
                         cv2.imwrite(str(photo_path), frame)
                         print(f"[ALERT] Unknown person detected! Photo saved to {photo_path}")
+                        last_capture_time = current_time
                         
                         # Send twilio alert
-                        time_display = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        notifier.send_alert(time_display, photo_name)
-                        
-                        # Update last alert time
-                        last_alert_time = current_time
+                        if current_time - last_alert_time >= settings.COOLDOWN_SECONDS:
+                            time_display = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            notifier.send_alert(time_display, photo_name)
+                            
+                            # Update last alert time
+                            last_alert_time = current_time
                     except Exception as e:
                         print(f"[ERROR] Failed to save photo/trigger alert: {e}")
 

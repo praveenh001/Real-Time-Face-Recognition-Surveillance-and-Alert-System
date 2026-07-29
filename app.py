@@ -19,6 +19,7 @@ latest_processed_frame = None
 camera_running = False
 camera_thread = None
 frame_lock = threading.Lock()
+last_heartbeat_time = 0.0
 
 # Face recognition database
 known_face_encodings = []
@@ -68,9 +69,10 @@ def background_camera_worker():
     performs face recognition, draws annotations, raises alerts,
     and updates the latest processed frame.
     """
-    global latest_processed_frame, camera_running
+    global latest_processed_frame, camera_running, last_heartbeat_time
     
     last_alert_time = 0
+    last_capture_time = 0
     video_capture = None
     current_source = None
     
@@ -87,6 +89,12 @@ def background_camera_worker():
     face_names = []
     
     while camera_running:
+        # Check for user activity timeout (Webcam Mode)
+        if settings.get_effective_camera_mode() == "webcam":
+            if time.time() - last_heartbeat_time > 6.0:  # 6-second inactivity threshold
+                print("[INFO] No active users detected (heartbeat timeout). Stopping webcam stream.")
+                camera_running = False
+                break
         # Check if the video source changed in configurations (Hot-swapping cameras)
         if current_source != settings.VIDEO_SOURCE:
             if video_capture is not None:
@@ -169,7 +177,7 @@ def background_camera_worker():
         # Intruder notification triggers
         if unknown_detected:
             now_time = time.time()
-            if now_time - last_alert_time >= settings.COOLDOWN_SECONDS:
+            if now_time - last_capture_time >= settings.CAPTURE_COOLDOWN_SECONDS:
                 now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 photo_name = f"captured_unknown_{now_str}.jpg"
                 photo_path = settings.CAPTURED_DIR / photo_name
@@ -177,11 +185,12 @@ def background_camera_worker():
                 try:
                     cv2.imwrite(str(photo_path), frame)
                     print(f"[ALERT] Unknown face captured: {photo_path}")
+                    last_capture_time = now_time
                     
-                    time_display = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    notifier.send_alert(time_display, photo_name)
-                    
-                    last_alert_time = now_time
+                    if now_time - last_alert_time >= settings.COOLDOWN_SECONDS:
+                        time_display = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        notifier.send_alert(time_display, photo_name)
+                        last_alert_time = now_time
                 except Exception as e:
                     print(f"[ERROR] Failed to save/alert intruder details: {e}")
                     
@@ -216,7 +225,10 @@ def index():
     """
     Serves main user dashboard web interface.
     """
-    # Start thread if it's inactive
+    global last_heartbeat_time
+    # Reset heartbeat and ensure thread is running
+    if settings.get_effective_camera_mode() == "webcam":
+        last_heartbeat_time = time.time()
     start_background_thread()
     return render_template("index.html")
 
@@ -241,7 +253,35 @@ def video_feed():
     """
     Flask route serving the processed camera MJPEG stream.
     """
+    global last_heartbeat_time
+    if settings.get_effective_camera_mode() == "webcam":
+        last_heartbeat_time = time.time()
+        start_background_thread()
     return Response(yield_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/heartbeat', methods=['POST'])
+def api_heartbeat():
+    """
+    Heartbeat ping from frontend to signal active tab.
+    In Webcam Mode, automatically starts camera background loop if inactive.
+    """
+    global last_heartbeat_time
+    last_heartbeat_time = time.time()
+    
+    effective_mode = settings.get_effective_camera_mode()
+    started = False
+    if effective_mode == "webcam":
+        if not camera_running or camera_thread is None or not camera_thread.is_alive():
+            print("[INFO] Heartbeat received. Re-starting webcam stream.")
+            start_background_thread()
+            started = True
+            
+    return jsonify({
+        "status": "success",
+        "camera_running": camera_running,
+        "effective_mode": effective_mode,
+        "started": started
+    })
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
@@ -251,8 +291,10 @@ def api_settings():
     if request.method == 'GET':
         return jsonify({
             "VIDEO_SOURCE": settings.VIDEO_SOURCE,
+            "CAMERA_MODE": settings.CAMERA_MODE,
             "TOLERANCE": settings.TOLERANCE,
             "COOLDOWN_SECONDS": settings.COOLDOWN_SECONDS,
+            "CAPTURE_COOLDOWN_SECONDS": settings.CAPTURE_COOLDOWN_SECONDS,
             "TWILIO_ACCOUNT_SID": settings.TWILIO_ACCOUNT_SID,
             "TWILIO_AUTH_TOKEN": settings.TWILIO_AUTH_TOKEN,
             "TWILIO_FROM_NUMBER": settings.TWILIO_FROM_NUMBER,
@@ -267,6 +309,16 @@ def api_settings():
         try:
             # Save settings using settings.py helper
             settings.save_settings(data)
+            
+            # Hot-swap/Restart background thread based on mode updates
+            effective_mode = settings.get_effective_camera_mode()
+            if effective_mode == "cctv":
+                start_background_thread()
+            elif effective_mode == "webcam":
+                global last_heartbeat_time
+                last_heartbeat_time = time.time()
+                start_background_thread()
+                
             return jsonify({"status": "success", "message": "Settings updated successfully."})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -341,8 +393,13 @@ def captured_photos(filename):
     return send_from_directory(settings.CAPTURED_DIR, filename)
 
 if __name__ == "__main__":
-    # Load known face database and launch thread
-    start_background_thread()
+    # In CCTV mode, start background processing immediately at boot.
+    # In Webcam mode, load faces but wait for dashboard/heartbeats to activate camera.
+    if settings.get_effective_camera_mode() == "cctv":
+        start_background_thread()
+    else:
+        load_known_faces()
+        
     # Start web server
     print("[INFO] Starting Flask web dashboard on port 5000...")
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

@@ -80,6 +80,20 @@
                         <input type="number" id="set-cooldown" min="10" required>
                     </div>
                 </div>
+                <div class="form-row split">
+                    <div class="input-group">
+                        <label for="set-capture-cooldown">Photo Capture Cooldown (seconds)</label>
+                        <input type="number" id="set-capture-cooldown" min="1" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="set-camera-mode">Camera Mode</label>
+                        <select id="set-camera-mode" required>
+                            <option value="auto">Auto-detect</option>
+                            <option value="webcam">Webcam (Session-based)</option>
+                            <option value="cctv">CCTV (Continuous 24/7)</option>
+                        </select>
+                    </div>
+                </div>
                 <hr class="divider">
                 <h3 class="subheader">Twilio Integration</h3>
                 <div class="form-row split">

@@ -15,6 +15,8 @@ const settingsForm = document.getElementById("settings-form");
 const inputVideoSource = document.getElementById("set-video-source");
 const inputTolerance = document.getElementById("set-tolerance");
 const inputCooldown = document.getElementById("set-cooldown");
+const inputCaptureCooldown = document.getElementById("set-capture-cooldown");
+const inputCameraMode = document.getElementById("set-camera-mode");
 const inputTwilioSid = document.getElementById("set-twilio-sid");
 const inputTwilioToken = document.getElementById("set-twilio-token");
 const inputTwilioFrom = document.getElementById("set-twilio-from");
@@ -52,7 +54,20 @@ document.addEventListener("DOMContentLoaded", () => {
     uploadForm.addEventListener("submit", handleEnrollmentSubmit);
     settingsForm.addEventListener("submit", handleSettingsSubmit);
     refreshLogBtn.addEventListener("click", fetchIntruderLogs);
+
+    // 6. Start active session heartbeat ping (every 2 seconds)
+    sendHeartbeat();
+    setInterval(sendHeartbeat, 2000);
 });
+
+// Send periodic heartbeat to keep the stream alive (for Webcam Mode)
+async function sendHeartbeat() {
+    try {
+        await fetch("/api/heartbeat", { method: "POST" });
+    } catch (err) {
+        console.error("Heartbeat sync failed:", err);
+    }
+}
 
 // Update the navbar clock
 function updateTime() {
@@ -89,8 +104,10 @@ async function fetchSettings() {
         if (response.ok) {
             const data = await response.json();
             inputVideoSource.value = data.VIDEO_SOURCE;
+            inputCameraMode.value = data.CAMERA_MODE || "auto";
             inputTolerance.value = data.TOLERANCE;
             inputCooldown.value = data.COOLDOWN_SECONDS;
+            inputCaptureCooldown.value = data.CAPTURE_COOLDOWN_SECONDS || 10;
             inputTwilioSid.value = data.TWILIO_ACCOUNT_SID;
             inputTwilioToken.value = data.TWILIO_AUTH_TOKEN;
             inputTwilioFrom.value = data.TWILIO_FROM_NUMBER;
@@ -98,7 +115,8 @@ async function fetchSettings() {
             
             // Set dynamic camera badge text
             const src = data.VIDEO_SOURCE;
-            cameraStatusBadge.textContent = isNaN(src) ? "Network Stream" : "Webcam Feed (Index " + src + ")";
+            const modeText = (data.CAMERA_MODE === "webcam") ? "Webcam Mode" : (data.CAMERA_MODE === "cctv" ? "CCTV Mode" : "Auto-detect Mode");
+            cameraStatusBadge.textContent = (isNaN(src) ? "Network Stream" : "Webcam Index " + src) + " (" + modeText + ")";
         }
     } catch (err) {
         console.error("Failed to load settings:", err);
@@ -112,8 +130,10 @@ async function handleSettingsSubmit(e) {
 
     const payload = {
         VIDEO_SOURCE: inputVideoSource.value,
+        CAMERA_MODE: inputCameraMode.value,
         TOLERANCE: parseFloat(inputTolerance.value),
         COOLDOWN_SECONDS: parseInt(inputCooldown.value),
+        CAPTURE_COOLDOWN_SECONDS: parseInt(inputCaptureCooldown.value),
         TWILIO_ACCOUNT_SID: inputTwilioSid.value,
         TWILIO_AUTH_TOKEN: inputTwilioToken.value,
         TWILIO_FROM_NUMBER: inputTwilioFrom.value,
